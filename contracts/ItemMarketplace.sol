@@ -5,17 +5,27 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
 interface IERC20 {
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
+
     function transfer(address to, uint256 amount) external returns (bool);
+
+    function balanceOf(address account) external view returns (uint256);
 }
 
 contract ItemMarketplace is AccessControl {
     using Counters for Counters.Counter;
 
-    bytes32 public constant DISPUTE_RESOLUTIONER = keccak256("DISPUTE_RESOLUTIONER");
+    bytes32 public constant DISPUTE_RESOLUTIONER =
+        keccak256("DISPUTE_RESOLUTIONER");
+    bytes32 public constant ADMIN = keccak256("ADMIN");
     Counters.Counter private saleCounter;
     mapping(uint256 => SaleOffer) public saleIdToSale;
     mapping(uint256 => string) public saleIdToDisputeReason;
+    mapping(address => uint256) public addressToTvl;
 
     enum SaleStatus {
         ACTIVE,
@@ -72,11 +82,14 @@ contract ItemMarketplace is AccessControl {
     E#6 - Price must be greater than 0!
     E#7 - Invalid sale status! Sale should be in status DISPUT_UNRESOLVED.
     E#8 - Only owner and buyer can can access it!
+    E#9 - Contract doesnt accept ETH!
+    E#10 - No funds to withdrawn!
     */
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(DISPUTE_RESOLUTIONER, msg.sender);
+        _grantRole(ADMIN, msg.sender);
     }
 
     modifier onlySeller(uint256 _saleId) {
@@ -148,6 +161,7 @@ contract ItemMarketplace is AccessControl {
         uint256 paymentAmount = saleIdToSale[_saleId].price;
         saleIdToSale[_saleId].status = SaleStatus.PAYED;
         saleIdToSale[_saleId].buyer = msg.sender;
+        addressToTvl[tokenPaymentAddress] += paymentAmount;
 
         bool sucess = IERC20(tokenPaymentAddress).transferFrom(
             msg.sender,
@@ -176,10 +190,11 @@ contract ItemMarketplace is AccessControl {
         require(saleIdToSale[_saleId].buyer == msg.sender, "E#4");
         require(saleIdToSale[_saleId].status == SaleStatus.SEND, "E#5");
 
-        saleIdToSale[_saleId].status = SaleStatus.RECEIVED;
         address seller = saleIdToSale[_saleId].seller;
         uint256 paymentAmount = saleIdToSale[_saleId].price;
         address tokenPaymentAddress = saleIdToSale[_saleId].paymentToken;
+        saleIdToSale[_saleId].status = SaleStatus.RECEIVED;
+        addressToTvl[tokenPaymentAddress] -= paymentAmount;
 
         bool sucess = IERC20(tokenPaymentAddress).transfer(
             seller,
@@ -196,7 +211,7 @@ contract ItemMarketplace is AccessControl {
         require(saleIdToSale[_saleId].status == SaleStatus.SEND, "E#5");
         require(
             saleIdToSale[_saleId].seller == msg.sender ||
-            saleIdToSale[_saleId].buyer == msg.sender,
+                saleIdToSale[_saleId].buyer == msg.sender,
             "E#8"
         );
 
@@ -216,7 +231,9 @@ contract ItemMarketplace is AccessControl {
         );
 
         uint256 paymentAmount = saleIdToSale[_saleId].price;
-        IERC20 tokenContract = IERC20(saleIdToSale[_saleId].paymentToken);
+        address tokenPaymentAddress = saleIdToSale[_saleId].paymentToken;
+        IERC20 tokenContract = IERC20(tokenPaymentAddress);
+        addressToTvl[tokenPaymentAddress] -= paymentAmount;
 
         if (isBuyerRight) {
             address buyer = saleIdToSale[_saleId].buyer;
@@ -234,5 +251,26 @@ contract ItemMarketplace is AccessControl {
         }
 
         emit DisputeResolved(_saleId, isBuyerRight);
+    }
+
+    function withdrawRedundantTokens(address _tokenAddress)
+        external
+        onlyRole(ADMIN)
+    {
+        IERC20 tokenContract = IERC20(_tokenAddress);
+        uint256 redundantTokens = tokenContract.balanceOf(address(this)) -
+            addressToTvl[_tokenAddress];
+        require(redundantTokens > 0, "E#10");
+
+        bool sucess = tokenContract.transfer(msg.sender, redundantTokens);
+        require(sucess, "E#1");
+        require(
+            tokenContract.balanceOf(address(this)) ==
+                addressToTvl[_tokenAddress]
+        );
+    }
+
+    receive() external payable {
+        revert("E#9");
     }
 }

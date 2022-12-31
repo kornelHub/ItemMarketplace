@@ -16,11 +16,11 @@ npx hardhat coverage
 ----------------------|----------|----------|----------|----------|----------------|
 File                  |  % Stmts | % Branch |  % Funcs |  % Lines |Uncovered Lines |
 ----------------------|----------|----------|----------|----------|----------------|
- contracts\           |      100 |    91.67 |      100 |      100 |                |
-  ItemMarketplace.sol |      100 |    91.67 |      100 |      100 |                |
+ contracts\           |      100 |    89.29 |      100 |      100 |                |
+  ItemMarketplace.sol |      100 |    89.29 |      100 |      100 |                |
   MockERC20.sol       |      100 |      100 |      100 |      100 |                |
 ----------------------|----------|----------|----------|----------|----------------|
-All files             |      100 |    91.67 |      100 |      100 |                |
+All files             |      100 |    89.29 |      100 |      100 |                |
 ----------------------|----------|----------|----------|----------|----------------|
 ```
 
@@ -30,6 +30,12 @@ All files             |      100 |    91.67 |      100 |      100 |             
 
 ```solidity
 bytes32 DISPUTE_RESOLUTIONER
+```
+
+### ADMIN
+
+```solidity
+bytes32 ADMIN
 ```
 
 ### saleIdToSale
@@ -42,6 +48,12 @@ mapping(uint256 => struct ItemMarketplace.SaleOffer) saleIdToSale
 
 ```solidity
 mapping(uint256 => string) saleIdToDisputeReason
+```
+
+### addressToTvl
+
+```solidity
+mapping(address => uint256) addressToTvl
 ```
 
 ### SaleStatus
@@ -190,4 +202,16 @@ function reportProblem(uint256 _saleId, string problemDescription) external
 
 ```solidity
 function resolveDispute(uint256 _saleId, bool isBuyerRight) external
+```
+
+### withdrawRedundantTokens
+
+```solidity
+function withdrawRedundantTokens(address _tokenAddress) external
+```
+
+### receive
+
+```solidity
+receive() external payable
 ```
